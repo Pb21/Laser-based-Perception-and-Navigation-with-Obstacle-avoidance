@@ -1,0 +1,37 @@
+Toggle line numbers
+   1 #!/usr/bin/env python  
+   2 import roslib
+   3 roslib.load_manifest('learning_tf')
+   4 import rospy
+   5 import math
+   6 import tf
+   7 import geometry_msgs.msg
+   8 import turtlesim.srv
+   9 
+  10 if __name__ == '__main__':
+  11     rospy.init_node('tf_turtle')
+  12 
+  13     listener = tf.TransformListener()
+  14 
+  15     rospy.wait_for_service('spawn')
+  16     spawner = rospy.ServiceProxy('spawn', turtlesim.srv.Spawn)
+  17     spawner(4, 2, 0, 'turtle2')
+  18 
+  19     turtle_vel = rospy.Publisher('turtle2/cmd_vel', geometry_msgs.msg.Twist,queue_size=1)
+  20 
+  21     rate = rospy.Rate(10.0)
+  22     while not rospy.is_shutdown():
+  23         try:
+  24             (trans,rot) = listener.lookupTransform('/turtle2', '/turtle1', rospy.Time(0))
+  25         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+  26             continue
+  27 
+  28         angular = 4 * math.atan2(trans[1], trans[0])
+  29         linear = 0.5 * math.sqrt(trans[0] ** 2 + trans[1] ** 2)
+  30         cmd = geometry_msgs.msg.Twist()
+  31         cmd.linear.x = linear
+  32         cmd.angular.z = angular
+  33         turtle_vel.publish(cmd)
+  34 
+  35         rate.sleep()
+

@@ -1,0 +1,195 @@
+#!/usr/bin/env python
+import numpy
+import rospy
+import tf
+import math
+from nav_msgs.msg import Odometry
+from std_msgs.msg import String
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist
+
+
+positionData = []
+
+#measuring distance of the point from the main line
+
+
+#def listener():
+ #   print "inside listener"
+  #  rospy.Subscriber("/base_scan", LaserScan, talker)
+   # rospy.spin()
+
+
+def listener2():
+    print "inside listener22222222"
+    rospy.Subscriber("/base_pose_ground_truth", Odometry, checkPosition)
+    rospy.Subscriber("/base_scan", LaserScan, talker)
+    # spin() simply keeps python from exiting until this node is stopped
+    rospy.spin()
+
+def checkPosition(msg):
+	print "INSIDE CHECKPOSITION"
+
+	global positionData
+
+	positionData = []
+# [msg.pose.pose.position.x msg.pose.pose.position.x msg.pose.pose.orientation.x msg.pose.pose.orientation.y msg.pose.pose.orientation.z]	
+	positionData=msg
+	#print positionData
+
+
+
+def dist_pt_line(x1,y1,x2,y2):
+#	global positionData
+	print "dist_pt_line"
+#	print positionData.pose	
+        new_point_x=positionData.pose.pose.position.x
+        new_point_y=positionData.pose.pose.position.y
+	delta_y = y2-y1
+	delta_x = x2- x1		
+	deno = math.sqrt(delta_y**2 +delta_x**2)
+
+	distance = (math.fabs((delta_y*new_point_x) -(delta_x*new_point_y)-(y2*x1)))/deno
+	return distance
+
+
+def desired_angle(x1,y1,x2,y2):
+
+	delta_y = y2-y1
+	delta_x = x2- x1		
+	
+	des_ang = math.degrees(math.atan(delta_y/delta_x))
+	return des_ang
+
+
+def near_obstacle(r):
+#	print r
+	flag=0
+	for i in range(90,270):
+	    	if r[i] < 1.0:		
+		   flag = 1
+		break
+	if flag==1:
+		return True
+	else:
+		return False
+	
+
+
+def obstacle_on_left(r):
+	flag=0
+	for i in range(270,361):
+	    	if r[i] < 1.0:		
+		   flag = 1
+		break
+	if flag==1:
+		return True
+	else:
+		return False
+		
+def am_i_online(x1, y1, x2, y2):
+
+    x3=positionData.pose.pose.position.x
+    y3=positionData.pose.pose.position.y
+    dlope = (y2 - y1) / (x2 - x1)
+    c = -(dlope *x1)+y1
+    if ( math.fabs(y3 - (dlope*x3+c)) < .001):
+        return True
+   
+    return False;
+
+def dist_from_goal(x1,y1):
+
+	own_x=positionData.pose.pose.position.x
+	own_y=positionData.pose.pose.position.y
+	
+	dist= math.sqrt((y1-own_y)**2+(x1-own_x)**2)
+	return dist
+
+def talker(data):
+	print "inside talker"
+        pub = rospy.Publisher('/cmd_vel',Twist,queue_size=1)
+#	rospy.Subscriber("/base_pose_ground_truth", Odometry, checkPosition)
+        rate = rospy.Rate(10) # 10hz
+        q = []
+	global positionData
+    #q.append(msg.pose.pose.position.x)
+    #q.append(msg.pose.pose.position.y)
+    #q.append(msg.pose.pose.position.z)
+	r=data.ranges
+        msg = Twist()
+	thresh_on_line = .04
+	thresh_frm_dist =.04
+	#Am i on line
+	
+	x1=positionData.pose.pose.position.x
+	y1=positionData.pose.pose.position.y
+	
+	x2=4.5
+	y2=9.0
+	my_dist = dist_pt_line(x1,y1,x2,y2)
+
+	print "my_dist"
+	print my_dist
+	#robot_state = GOAL_STATE
+
+	#GOAL_STATE- check  1. orientation 2. 
+
+#	while not rospy.is_shutdown():
+
+	if my_dist < thresh_on_line :
+	#have i reached my destination
+		dist_frm_dest =	dist_from_goal(x1,y1)
+		if dist_frm_dest <= thresh_frm_dist:
+			print "yay, reached"
+	#	continue
+
+	if near_obstacle(r):
+		print "while-----near_obs"
+		msg.linear.x = 0.0
+		msg.linear.y = 0.0
+		msg.angular.z = 0.2			
+	else:
+		if obstacle_on_left(r):
+			print "while-----obs_on_left"
+			msg.linear.x = 2.0
+			msg.linear.y = 0.0
+			msg.angular.z = 0.0			
+	#				robot_state = WALL_FOLLOW
+		else:
+			#no obstacle on left or close, hence  orientatoin check
+			#own angle
+			print "while-----else condn"
+			q = tf.transformations.euler_from_quaternion  							([positionData.pose.pose.orientation.x,positionData.pose.pose.orientation.y,positionData.pose.pose.orientation.z,positionData.pose.pose.orientation.w])
+			#goal_line_angle
+			desired_ang = desired_angle(x1,y1,x2,y2)	
+			current_angle =  math.degrees(q[2])
+
+			if current_angle - desired_ang >0.5:
+			#it needs to stop and turn first
+				msg.linear.x = 0.0
+				msg.linear.y = 0.0
+				msg.angular.z = current_angle - desired_ang
+				print "need to turn"
+			else:
+			#facing right direction, now check if on line
+				if am_i_online(x1,y1,x2,y2):
+					msg.linear.x = 2.0
+					msg.linear.y = 0.0
+					msg.angular.z = 0.0			
+
+					print "moving forward"
+				else:
+				# i am not on line, 	    	
+					print "NOT on line"
+	pub.publish(msg)
+
+
+
+
+if __name__ == '__main__':
+    rospy.init_node('evader2', anonymous=True)
+    
+    while not rospy.is_shutdown():
+	listener2()
+#	listener()

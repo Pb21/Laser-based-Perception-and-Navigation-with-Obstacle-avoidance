@@ -1,0 +1,10 @@
+<launch>
+	<node name="evader" pkg="stage_ros" type="stageros"
+	      args="$(find lab2)/world/playground.world" />
+	<node name="evader" pkg="lab2" type="perception.py" respawn="false" output="screen"/>
+
+</launch>
+
+
+
+

@@ -1,0 +1,21 @@
+ <launch>
+    
+	<node name="stage" pkg="stage_ros" type="stageros"
+	      args="$(find lab1)/world/playground.world" />
+
+	<node pkg="lab1" type="listener.py" 
+          name="listener0" />
+	
+	<node pkg="lab1" type="a.py" name="listener1" />
+
+    	<node name="robot1_tf_broadcaster" pkg="lab1" type="b.py" respawn="false" output="screen" >
+     		 <param name="turtle" type="string" value="robot_0" /> 
+    	</node>
+
+    	<node name="robot2_tf_broadcaster" pkg="lab1" type="b.py" respawn="false" output="screen" >
+      		<param name="turtle" type="string" value="robot_1" /> 
+    	</node>
+
+    	
+
+  </launch>		
